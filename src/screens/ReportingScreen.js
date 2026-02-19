@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import {CameraView, useCameraPermissions, useMicrophonePermissions} from 'expo-camera';
 import * as Location from 'expo-location';
 import { COLORS, SPACING, BORDER_RADIUS, VIOLATION_TYPES } from '../constants/theme';
 import { submitReport } from '../services/api';
@@ -25,6 +25,7 @@ const MAX_VIDEO_DURATION = 30; // 30 seconds max
 export default function ReportingScreen() {
     // Camera states
     const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+    const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
     const [showCamera, setShowCamera] = useState(false);
     const [cameraMode, setCameraMode] = useState('picture'); // 'picture' or 'video'
     const [isRecording, setIsRecording] = useState(false);
