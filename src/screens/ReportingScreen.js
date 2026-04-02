@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import {CameraView, useCameraPermissions, useMicrophonePermissions} from 'expo-camera';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS, SPACING, BORDER_RADIUS, VIOLATION_TYPES } from '../constants/theme';
 import { submitReport } from '../services/api';
 
@@ -186,6 +187,28 @@ export default function ReportingScreen() {
             if (recordingTimerRef.current) {
                 clearInterval(recordingTimerRef.current);
             }
+        }
+    };
+
+    const pickMedia = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images', 'videos'],
+                quality: 0.8,
+                allowsEditing: true,
+            });
+
+            if (!result.canceled) {
+                const asset = result.assets[0];
+                setCapturedMedia({
+                    uri: asset.uri,
+                    type: asset.type === 'video' ? 'video/mp4' : 'image/jpeg',
+                    isVideo: asset.type === 'video',
+                });
+            }
+        } catch (error) {
+            console.error('Error picking media:', error);
+            Alert.alert('Error', 'Failed to pick media from gallery.');
         }
     };
 
@@ -396,6 +419,25 @@ export default function ReportingScreen() {
                                 <Text style={styles.captureOptionText}>Record Video</Text>
                                 <Text style={styles.captureOptionHint}>30s max</Text>
                             </TouchableOpacity>
+                        </View>
+                    )}
+                    
+                    {/* Testing Section */}
+                    {!capturedMedia && (
+                        <View style={styles.testingContainer}>
+                            <TouchableOpacity
+                                style={styles.testingButton}
+                                onPress={pickMedia}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.testingButtonIcon}>📂</Text>
+                                <Text style={styles.testingButtonText}>Upload for Testing</Text>
+                            </TouchableOpacity>
+                            <View style={styles.disclaimerContainer}>
+                                <Text style={styles.disclaimerText}>
+                                    ⚠️ TESTING ONLY: Select images or clips from your device for testing purposes.
+                                </Text>
+                            </View>
                         </View>
                     )}
                 </View>
@@ -936,5 +978,40 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         textAlign: 'center',
         lineHeight: 24,
+    },
+    testingContainer: {
+        marginTop: SPACING.md,
+    },
+    testingButton: {
+        flexDirection: 'row',
+        backgroundColor: COLORS.bgCard,
+        borderRadius: BORDER_RADIUS.lg,
+        paddingVertical: SPACING.md,
+        paddingHorizontal: SPACING.xl,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: COLORS.primary + '40',
+        width: '100%',
+    },
+    testingButtonIcon: {
+        fontSize: 20,
+        marginRight: SPACING.sm,
+    },
+    testingButtonText: {
+        color: COLORS.primary,
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    disclaimerContainer: {
+        marginTop: SPACING.sm,
+        paddingHorizontal: SPACING.sm,
+    },
+    disclaimerText: {
+        color: COLORS.textMuted,
+        fontSize: 12,
+        fontStyle: 'italic',
+        textAlign: 'center',
+        lineHeight: 18,
     },
 });
