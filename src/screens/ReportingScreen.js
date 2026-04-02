@@ -771,7 +771,7 @@ const styles = StyleSheet.create({
     cameraOverlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'transparent',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
     },
     cameraCloseButton: {
         position: 'absolute',
