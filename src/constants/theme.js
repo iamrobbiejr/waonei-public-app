@@ -59,7 +59,6 @@ export const VIOLATION_TYPES = [
     { value: 'red_light', label: '🚦 Red Light Violation' },
     { value: 'wrong_way', label: '↩️ Wrong Way Driving' },
     { value: 'illegal_parking', label: '🅿️ Illegal Parking' },
-    { value: 'speeding', label: '⚡ Speeding' },
     { value: 'phone_usage', label: '📱 Phone Usage While Driving' },
     { value: 'seatbelt_violation', label: '🔒 Seatbelt Violation' },
 ];

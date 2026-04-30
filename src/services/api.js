@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://7aab616e42b2.ngrok-free.app';
+const API_BASE_URL = 'https://inspiringly-protuberant-walter.ngrok-free.dev';
 
 export const submitReport = async ({
     file,
