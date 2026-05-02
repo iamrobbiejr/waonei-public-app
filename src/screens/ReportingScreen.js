@@ -10,7 +10,6 @@ import {
     Alert,
     ActivityIndicator,
     Modal,
-    Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
