@@ -112,6 +112,7 @@ export default function ReportingScreen() {
     };
 
     const openCamera = async (mode) => {
+        // Check Camera Permission
         if (!cameraPermission?.granted) {
             const result = await requestCameraPermission();
             if (!result.granted) {
@@ -119,6 +120,16 @@ export default function ReportingScreen() {
                 return;
             }
         }
+
+        // Check Microphone Permission (Required for video)
+        if (mode === 'video' && !microphonePermission?.granted) {
+            const result = await requestMicrophonePermission();
+            if (!result.granted) {
+                Alert.alert('Permission Denied', 'Microphone permission is needed to record video.');
+                return;
+            }
+        }
+
         setCameraMode(mode);
         setShowCamera(true);
     };
@@ -161,6 +172,7 @@ export default function ReportingScreen() {
 
                 const video = await cameraRef.current.recordAsync({
                     maxDuration: MAX_VIDEO_DURATION,
+                    quality: '720p'
                 });
 
                 setCapturedMedia({
