@@ -20,7 +20,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { COLORS, SPACING, BORDER_RADIUS, VIOLATION_TYPES } from '../constants/theme';
 import { submitReport } from '../services/api';
 
-const { width, height } = Dimensions.get('window');
 const MAX_VIDEO_DURATION = 30; // 30 seconds max
 
 export default function ReportingScreen() {
