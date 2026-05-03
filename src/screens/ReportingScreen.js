@@ -19,7 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { COLORS, SPACING, BORDER_RADIUS, VIOLATION_TYPES } from '../constants/theme';
 import { submitReport } from '../services/api';
 
-const MAX_VIDEO_DURATION = 30; // 30 seconds max
+const MAX_VIDEO_DURATION = 15; // 15 seconds max — keeps files small for fast upload
 
 export default function ReportingScreen() {
     // Camera states
@@ -45,9 +45,11 @@ export default function ReportingScreen() {
     const [vehicleColor, setVehicleColor] = useState('');
     const [vehicleMake, setVehicleMake] = useState('');
 
-    // Submission state
+    // Submission / upload progress state
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitSuccess, setSubmitSuccess] = useState(false);
+    const [uploadPhase, setUploadPhase] = useState('idle'); // 'idle' | 'compressing' | 'uploading'
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     // Get location on mount
     useEffect(() => {
@@ -170,7 +172,7 @@ export default function ReportingScreen() {
 
                 const video = await cameraRef.current.recordAsync({
                     maxDuration: MAX_VIDEO_DURATION,
-                    quality: '720p'
+                    quality: '480p', // lower bitrate — dramatically reduces file size
                 });
 
                 setCapturedMedia({
@@ -210,10 +212,22 @@ export default function ReportingScreen() {
 
             if (!result.canceled) {
                 const asset = result.assets[0];
+                const isVideo = asset.type === 'video';
+
+                // Hard-reject gallery videos that are far too large to compress in time
+                if (isVideo && asset.fileSize && asset.fileSize > 60 * 1024 * 1024) {
+                    Alert.alert(
+                        'Video Too Large',
+                        'This video is too large (over 60 MB). Please select a shorter clip — ideally under 15 seconds.',
+                    );
+                    return;
+                }
+
                 setCapturedMedia({
                     uri: asset.uri,
-                    type: asset.type === 'video' ? 'video/mp4' : 'image/jpeg',
-                    isVideo: asset.type === 'video',
+                    type: isVideo ? 'video/mp4' : 'image/jpeg',
+                    isVideo,
+                    fileSize: asset.fileSize,
                 });
             }
         } catch (error) {
@@ -249,19 +263,27 @@ export default function ReportingScreen() {
         }
 
         setIsSubmitting(true);
+        setUploadPhase('idle');
+        setUploadProgress(0);
 
         try {
-            await submitReport({
-                file: capturedMedia,
-                latitude: location?.latitude,
-                longitude: location?.longitude,
-                locationDescription: location?.address,
-                violationType,
-                description,
-                vehiclePlate,
-                vehicleColor,
-                vehicleMake,
-            });
+            await submitReport(
+                {
+                    file: capturedMedia,
+                    latitude: location?.latitude,
+                    longitude: location?.longitude,
+                    locationDescription: location?.address,
+                    violationType,
+                    description,
+                    vehiclePlate,
+                    vehicleColor,
+                    vehicleMake,
+                },
+                ({ phase, percent }) => {
+                    setUploadPhase(phase);
+                    setUploadProgress(percent);
+                }
+            );
 
             setSubmitSuccess(true);
 
@@ -274,7 +296,7 @@ export default function ReportingScreen() {
                 setVehiclePlate('');
                 setVehicleColor('');
                 setVehicleMake('');
-                getLocation(); // Refresh location
+                getLocation();
             }, 3000);
         } catch (error) {
             Alert.alert(
@@ -283,6 +305,8 @@ export default function ReportingScreen() {
             );
         } finally {
             setIsSubmitting(false);
+            setUploadPhase('idle');
+            setUploadProgress(0);
         }
     };
 
@@ -550,7 +574,23 @@ export default function ReportingScreen() {
                         style={styles.submitButtonGradient}
                     >
                         {isSubmitting ? (
-                            <ActivityIndicator color={COLORS.white} />
+                            <View style={styles.progressContainer}>
+                                <Text style={styles.progressLabel}>
+                                    {uploadPhase === 'compressing'
+                                        ? `🗜️ Compressing… ${Math.min(100, uploadProgress)}%`
+                                        : uploadPhase === 'uploading'
+                                        ? `📤 Uploading… ${Math.min(100, uploadProgress)}%`
+                                        : 'Preparing…'}
+                                </Text>
+                                <View style={styles.progressBarTrack}>
+                                    <View
+                                        style={[
+                                            styles.progressBarFill,
+                                            { width: `${Math.min(100, Math.max(0, uploadProgress))}%` },
+                                        ]}
+                                    />
+                                </View>
+                            </View>
                         ) : (
                             <Text style={styles.submitButtonText}>Submit Report</Text>
                         )}
@@ -796,6 +836,29 @@ const styles = StyleSheet.create({
         color: COLORS.white,
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    progressContainer: {
+        alignItems: 'center',
+        width: '100%',
+        paddingHorizontal: SPACING.md,
+    },
+    progressLabel: {
+        color: COLORS.white,
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: SPACING.xs,
+    },
+    progressBarTrack: {
+        width: '100%',
+        height: 6,
+        backgroundColor: 'rgba(255,255,255,0.25)',
+        borderRadius: 3,
+        overflow: 'hidden',
+    },
+    progressBarFill: {
+        height: '100%',
+        backgroundColor: COLORS.white,
+        borderRadius: 3,
     },
     bottomPadding: {
         height: 40,
