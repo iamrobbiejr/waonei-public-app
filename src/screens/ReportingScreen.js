@@ -16,10 +16,13 @@ import { StatusBar } from 'expo-status-bar';
 import {CameraView, useCameraPermissions, useMicrophonePermissions} from 'expo-camera';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
-import { COLORS, SPACING, BORDER_RADIUS, VIOLATION_TYPES } from '../constants/theme';
+import { COLORS, SPACING, BORDER_RADIUS, VIOLATION_TYPES, VEHICLE_COLORS, VEHICLE_MAKES } from '../constants/theme';
+import { PROFANITY_LIST } from '../constants/validation';
 import { submitReport } from '../services/api';
 
 const MAX_VIDEO_DURATION = 15; // 15 seconds max — keeps files small for fast upload
+
+
 
 export default function ReportingScreen() {
     // Camera states
@@ -39,11 +42,19 @@ export default function ReportingScreen() {
     const [location, setLocation] = useState(null);
     const [locationLoading, setLocationLoading] = useState(true);
     const [violationType, setViolationType] = useState('');
-    const [showViolationPicker, setShowViolationPicker] = useState(false);
     const [description, setDescription] = useState('');
     const [vehiclePlate, setVehiclePlate] = useState('');
     const [vehicleColor, setVehicleColor] = useState('');
     const [vehicleMake, setVehicleMake] = useState('');
+
+    // Picker and Suggestions states
+    const [showViolationPicker, setShowViolationPicker] = useState(false);
+    const [showColorPicker, setShowColorPicker] = useState(false);
+    const [filteredMakes, setFilteredMakes] = useState([]);
+    const [showMakeSuggestions, setShowMakeSuggestions] = useState(false);
+
+    // Validation state
+    const [errors, setErrors] = useState({});
 
     // Submission / upload progress state
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -247,21 +258,115 @@ export default function ReportingScreen() {
         setVehiclePlate('');
         setVehicleColor('');
         setVehicleMake('');
+        setErrors({});
+        setFilteredMakes([]);
+        setShowMakeSuggestions(false);
         getLocation(); // Refresh location
     };
 
+    const handleMakeChange = (text) => {
+        setVehicleMake(text);
+        if (text.length > 0) {
+            const filtered = VEHICLE_MAKES.filter(make => 
+                make.toLowerCase().includes(text.toLowerCase())
+            ).slice(0, 5); // Limit to 5 suggestions for cleaner UI
+            setFilteredMakes(filtered);
+            setShowMakeSuggestions(filtered.length > 0);
+        } else {
+            setFilteredMakes([]);
+            setShowMakeSuggestions(false);
+        }
+        
+        // Clear error when user types
+        if (errors.vehicleMake) {
+            setErrors(prev => ({ ...prev, vehicleMake: null }));
+        }
+    };
+
+    const selectMake = (make) => {
+        setVehicleMake(make);
+        setFilteredMakes([]);
+        setShowMakeSuggestions(false);
+    };
+
+    const getWordCount = (text) => {
+        return text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+    };
+
+    const hasGibberish = (text) => {
+        // Check for 5+ repeating characters (e.g., aaaaa)
+        const charRepeat = /(.)\1{4,}/;
+        if (charRepeat.test(text.replace(/\s/g, ''))) return true;
+
+        // Check for 3+ repeating words (e.g., test test test)
+        const words = text.toLowerCase().trim().split(/\s+/);
+        for (let i = 0; i < words.length - 2; i++) {
+            if (words[i] === words[i+1] && words[i] === words[i+2]) return true;
+        }
+
+        return false;
+    };
+
+    const containsProfanity = (text) => {
+        const lowerText = text.toLowerCase();
+        return PROFANITY_LIST.some(word => lowerText.includes(word));
+    };
+
     const handleSubmit = async () => {
-        // Validation
+        const newErrors = {};
+
+        // 1. Core Validation
         if (!capturedMedia) {
             Alert.alert('Missing Evidence', 'Please capture a photo or video of the violation.');
             return;
         }
 
         if (!violationType) {
-            Alert.alert('Missing Information', 'Please select the type of violation.');
+            newErrors.violationType = 'Please select the type of violation.';
+        }
+
+        // 2. Description Validation (Optional but must meet limits if provided)
+        if (description.trim().length > 0) {
+            const wordCount = getWordCount(description);
+            if (wordCount < 5) {
+                newErrors.description = 'Description is too short (minimum 5 words).';
+            } else if (wordCount > 100) {
+                newErrors.description = 'Description is too long (maximum 100 words).';
+            }
+
+            // Language/Character set validation
+            // Allowing Latin characters, numbers, and standard punctuation common in English/Shona/Ndebele
+            const langRegex = /^[a-zA-Z0-9\s.,!?'"()\-]+$/;
+            if (!langRegex.test(description)) {
+                newErrors.description = 'Please use English, Shona, or Ndebele (standard characters only).';
+            }
+
+            // Gibberish / Profanity validation
+            if (hasGibberish(description)) {
+                newErrors.description = 'Please provide a clear description without repeating characters or words.';
+            } else if (containsProfanity(description)) {
+                newErrors.description = 'Your description contains prohibited language. Please keep it professional.';
+            }
+        }
+
+        // 3. Vehicle Details Validation (Optional but must be valid if provided)
+        if (vehiclePlate.trim().length > 0) {
+            const plateRegex = /^[A-Z]{3}\d{4}$/;
+            if (!plateRegex.test(vehiclePlate.replace(/\s/g, ''))) {
+                newErrors.vehiclePlate = 'Invalid Zimbabwe plate format (e.g. AHQ1234).';
+            }
+        }
+
+        // If errors exist, stop and show them
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            // Alert for the first error or general message
+            const firstError = Object.values(newErrors)[0];
+            Alert.alert('Form Error', firstError);
             return;
         }
 
+        setErrors({});
         setIsSubmitting(true);
         setUploadPhase('idle');
         setUploadProgress(0);
@@ -275,7 +380,7 @@ export default function ReportingScreen() {
                     locationDescription: location?.address,
                     violationType,
                     description,
-                    vehiclePlate,
+                    vehiclePlate: vehiclePlate.replace(/\s/g, '').toUpperCase(),
                     vehicleColor,
                     vehicleMake,
                 },
@@ -290,13 +395,7 @@ export default function ReportingScreen() {
             // Reset form after 3 seconds
             setTimeout(() => {
                 setSubmitSuccess(false);
-                setCapturedMedia(null);
-                setViolationType('');
-                setDescription('');
-                setVehiclePlate('');
-                setVehicleColor('');
-                setVehicleMake('');
-                getLocation();
+                resetForm();
             }, 3000);
         } catch (error) {
             Alert.alert(
@@ -501,7 +600,7 @@ export default function ReportingScreen() {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>⚠️ Violation Type *</Text>
                     <TouchableOpacity
-                        style={styles.pickerButton}
+                        style={[styles.pickerButton, errors.violationType && styles.inputError]}
                         onPress={() => setShowViolationPicker(true)}
                     >
                         <Text style={[
@@ -512,49 +611,94 @@ export default function ReportingScreen() {
                         </Text>
                         <Text style={styles.pickerArrow}>▼</Text>
                     </TouchableOpacity>
+                    {errors.violationType && <Text style={styles.errorText}>{errors.violationType}</Text>}
                 </View>
 
                 {/* Description Section */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>📝 Additional Details</Text>
                     <TextInput
-                        style={styles.textInput}
+                        style={[styles.textInput, errors.description && styles.inputError]}
                         placeholder="Describe what happened..."
                         placeholderTextColor={COLORS.textMuted}
                         value={description}
-                        onChangeText={setDescription}
+                        onChangeText={(text) => {
+                            setDescription(text);
+                            if (errors.description) setErrors(prev => ({ ...prev, description: null }));
+                        }}
                         multiline
                         numberOfLines={3}
                     />
+                    <View style={styles.helperRow}>
+                        <Text style={styles.helperText}>Min 5 words, max 100 words. (Eng/Sho/Nde)</Text>
+                        <Text style={[
+                            styles.wordCount, 
+                            (getWordCount(description) < 5 || getWordCount(description) > 100) && description.length > 0 && { color: COLORS.error }
+                        ]}>
+                            {getWordCount(description)} words
+                        </Text>
+                    </View>
+                    {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
                 </View>
 
                 {/* Vehicle Details Section */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>🚗 Vehicle Details (Optional)</Text>
                     <TextInput
-                        style={styles.input}
-                        placeholder="License Plate Number"
+                        style={[styles.input, errors.vehiclePlate && styles.inputError]}
+                        placeholder="License Plate Number (e.g. AHQ1234)"
                         placeholderTextColor={COLORS.textMuted}
                         value={vehiclePlate}
-                        onChangeText={setVehiclePlate}
+                        onChangeText={(text) => {
+                            setVehiclePlate(text);
+                            if (errors.vehiclePlate) setErrors(prev => ({ ...prev, vehiclePlate: null }));
+                        }}
                         autoCapitalize="characters"
                     />
+                    {errors.vehiclePlate && <Text style={styles.errorText}>{errors.vehiclePlate}</Text>}
+                    
                     <View style={styles.inputRow}>
-                        <TextInput
-                            style={[styles.input, styles.inputHalf]}
-                            placeholder="Color"
-                            placeholderTextColor={COLORS.textMuted}
-                            value={vehicleColor}
-                            onChangeText={setVehicleColor}
-                        />
-                        <TextInput
-                            style={[styles.input, styles.inputHalf]}
-                            placeholder="Make/Model"
-                            placeholderTextColor={COLORS.textMuted}
-                            value={vehicleMake}
-                            onChangeText={setVehicleMake}
-                        />
+                        <View style={styles.inputHalf}>
+                            <TouchableOpacity
+                                style={styles.pickerButton}
+                                onPress={() => setShowColorPicker(true)}
+                            >
+                                <Text style={[
+                                    styles.pickerButtonText,
+                                    !vehicleColor && styles.pickerPlaceholder
+                                ]}>
+                                    {vehicleColor ? VEHICLE_COLORS.find(c => c.value === vehicleColor)?.label : 'Color'}
+                                </Text>
+                                <Text style={styles.pickerArrow}>▼</Text>
+                            </TouchableOpacity>
+                        </View>
+                        
+                        <View style={styles.inputHalf}>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Make (e.g. Toyota)"
+                                placeholderTextColor={COLORS.textMuted}
+                                value={vehicleMake}
+                                onChangeText={handleMakeChange}
+                                onFocus={() => vehicleMake.length > 0 && setShowMakeSuggestions(true)}
+                            />
+                        </View>
                     </View>
+
+                    {/* Make Suggestions */}
+                    {showMakeSuggestions && filteredMakes.length > 0 && (
+                        <View style={styles.suggestionsContainer}>
+                            {filteredMakes.map((make, index) => (
+                                <TouchableOpacity
+                                    key={index}
+                                    style={styles.suggestionItem}
+                                    onPress={() => selectMake(make)}
+                                >
+                                    <Text style={styles.suggestionText}>{make}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
                 </View>
 
                 {/* Submit Button */}
@@ -643,6 +787,52 @@ export default function ReportingScreen() {
                                 </Text>
                             </TouchableOpacity>
                         ))}
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+
+            {/* Vehicle Color Picker Modal */}
+            <Modal
+                visible={showColorPicker}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowColorPicker(false)}
+            >
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setShowColorPicker(false)}
+                >
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Select Vehicle Color</Text>
+                        <ScrollView style={{ maxHeight: 400 }}>
+                            {VEHICLE_COLORS.map((color) => (
+                                <TouchableOpacity
+                                    key={color.value}
+                                    style={[
+                                        styles.modalOption,
+                                        vehicleColor === color.value && styles.modalOptionSelected
+                                    ]}
+                                    onPress={() => {
+                                        setVehicleColor(color.value);
+                                        setShowColorPicker(false);
+                                    }}
+                                >
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <View style={[
+                                            styles.colorDot, 
+                                            { backgroundColor: color.value === 'pearl' ? '#f0f0f0' : color.value.replace('_', '') }
+                                        ]} />
+                                        <Text style={[
+                                            styles.modalOptionText,
+                                            vehicleColor === color.value && styles.modalOptionTextSelected
+                                        ]}>
+                                            {color.label}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
                     </View>
                 </TouchableOpacity>
             </Modal>
@@ -873,6 +1063,55 @@ const styles = StyleSheet.create({
         color: COLORS.textMuted,
         fontSize: 16,
         fontWeight: '500',
+    },
+    errorText: {
+        color: COLORS.error,
+        fontSize: 12,
+        marginTop: 4,
+        marginLeft: 4,
+    },
+    inputError: {
+        borderColor: COLORS.error,
+        borderWidth: 1,
+    },
+    helperRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: SPACING.xs,
+        paddingHorizontal: 4,
+    },
+    helperText: {
+        color: COLORS.textMuted,
+        fontSize: 12,
+    },
+    wordCount: {
+        color: COLORS.textMuted,
+        fontSize: 12,
+    },
+    suggestionsContainer: {
+        backgroundColor: COLORS.bgCardLight,
+        borderRadius: BORDER_RADIUS.md,
+        marginTop: 4,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: COLORS.bgCardLight,
+    },
+    suggestionItem: {
+        padding: SPACING.md,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.bgCard,
+    },
+    suggestionText: {
+        color: COLORS.textPrimary,
+        fontSize: 14,
+    },
+    colorDot: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        marginRight: SPACING.sm,
+        borderWidth: 1,
+        borderColor: COLORS.bgCardLight,
     },
 
     // Camera styles

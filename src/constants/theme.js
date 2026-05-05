@@ -62,3 +62,30 @@ export const VIOLATION_TYPES = [
     { value: 'phone_usage', label: '📱 Phone Usage While Driving' },
     { value: 'seatbelt_violation', label: '🔒 Seatbelt Violation' },
 ];
+
+export const VEHICLE_COLORS = [
+    { label: 'White', value: 'white' },
+    { label: 'Silver', value: 'silver' },
+    { label: 'Grey', value: 'grey' },
+    { label: 'Black', value: 'black' },
+    { label: 'Blue', value: 'blue' },
+    { label: 'Red', value: 'red' },
+    { label: 'Gold', value: 'gold' },
+    { label: 'Beige', value: 'beige' },
+    { label: 'Green', value: 'green' },
+    { label: 'Yellow', value: 'yellow' },
+    { label: 'Orange', value: 'orange' },
+    { label: 'Brown', value: 'brown' },
+    { label: 'Maroon', value: 'maroon' },
+    { label: 'Navy Blue', value: 'navy_blue' },
+    { label: 'Pearl', value: 'pearl' },
+];
+
+export const VEHICLE_MAKES = [
+    'Toyota', 'Honda', 'Nissan', 'Mazda', 'Mercedes-Benz', 'BMW', 'Audi', 'Volkswagen', 
+    'Ford', 'Chevrolet', 'Hyundai', 'Kia', 'Mitsubishi', 'Subaru', 'Isuzu', 'Suzuki', 
+    'Lexus', 'Volvo', 'Land Rover', 'Range Rover', 'Jaguar', 'Porsche', 'Jeep', 'Dodge', 
+    'Chrysler', 'Fiat', 'Peugeot', 'Renault', 'Citroen', 'Opel', 'Seat', 'Skoda', 
+    'Alfa Romeo', 'Mini', 'Tesla', 'MG', 'Great Wall', 'Haval', 'Geely', 'Chery', 
+    'BYD', 'JAC', 'Foton', 'Mahindra', 'Tata', 'Hino', 'Scania', 'DAF', 'MAN'
+];
